@@ -27,7 +27,7 @@
                             bg: '#0f172a',
                             card: '#1e293b',
                             border: '#334155',
-                            hover: '#334155'
+                            hover: '#475569'
                         }
                     },
                     fontFamily: {
@@ -39,10 +39,10 @@
     </script>
 
     <!-- Google Font & Font Awesome Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Supabase JS Client Integration -->
+    <!-- Supabase JS Client SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
@@ -52,7 +52,6 @@
             color: #f8fafc;
         }
 
-        /* Glassmorphism custom styling */
         .glass-panel {
             background: rgba(30, 41, 59, 0.7);
             backdrop-filter: blur(12px);
@@ -66,7 +65,6 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Custom scrollbars */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -81,37 +79,17 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #475569;
         }
-
-        /* Print styles for receipts */
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            #printable-receipt, #printable-receipt * {
-                visibility: visible;
-            }
-            #printable-receipt {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                color: black !important;
-                background: white !important;
-                padding: 20px;
-            }
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100 antialiased selection:bg-rose-500 selection:text-white">
 
-    <!-- Header -->
     <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 shadow-xl">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Brand Title -->
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-purple-600 flex items-center justify-center shadow-lg shadow-rose-950/50">
-                        <i class="fa-solid font-bold fa-martini-glass-citrus text-white text-lg"></i>
+                        <i class="fa-solid fa-martini-glass-citrus text-white text-lg"></i>
                     </div>
                     <div>
                         <h1 class="font-bold text-lg leading-none tracking-tight text-white flex items-center gap-2">
@@ -121,20 +99,19 @@
                     </div>
                 </div>
 
-                <!-- Sync & Status Indicator -->
+                <!-- Sync Indicator & Seed Button -->
                 <div class="flex items-center gap-3">
                     <div id="sync-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-400">
                         <span class="relative flex h-2.5 w-2.5">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                          <span id="sync-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span id="sync-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                         </span>
-                        <span id="sync-text">Sincronizado Cloud</span>
+                        <span id="sync-text">Modo Local (Offline)</span>
                     </div>
 
-                    <!-- Action: Quick Reset / Seed standard data -->
-                    <button onclick="seedInitialData()" title="Cargar Datos de Ejemplo" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-sm flex items-center gap-1">
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span class="hidden sm:inline">Cargar Demo</span>
+                    <button onclick="seedDemoData(true)" title="Cargar Datos de Ejemplo" class="p-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs flex items-center gap-1.5 border border-slate-700">
+                        <i class="fa-solid fa-cloud-arrow-up text-rose-400"></i>
+                        <span class="hidden sm:inline font-medium">Cargar Demo</span>
                     </button>
                 </div>
             </div>
@@ -163,7 +140,6 @@
         </div>
     </header>
 
-    <!-- Main Content Container -->
     <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
         <!-- Toast Notification Container -->
@@ -171,25 +147,33 @@
 
         <!-- ================= TAB 1: MESAS Y PEDIDOS ================= -->
         <section id="view-tables" class="tab-view space-y-6">
-            <!-- Controls Bar -->
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 glass-panel p-4 rounded-xl">
                 <div>
                     <h2 class="text-xl font-bold text-white flex items-center gap-2">
                         <i class="fa-solid fa-border-all text-rose-500"></i> Vista de Áreas y Mesas
                     </h2>
-                    <p class="text-sm text-slate-400">Seleccione una mesa para tomar comandas o procesar pago</p>
+                    <p class="text-sm text-slate-400">Seleccione una mesa para tomar comandas o procesar cobro</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <!-- Area Selector Filter -->
+                    <select id="area-filter" onchange="renderTables()" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500">
+                        <option value="ALL">Todas las Áreas</option>
+                        <option value="Salón Principal">Salón Principal</option>
+                        <option value="Terraza">Terraza</option>
+                        <option value="Barra">Barra</option>
+                        <option value="VIP">VIP</option>
+                    </select>
+
                     <!-- Filter By Status -->
-                    <select id="table-filter" onchange="renderTables()" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500">
-                        <option value="ALL">Todas las Mesas</option>
+                    <select id="status-filter" onchange="renderTables()" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500">
+                        <option value="ALL">Todos los Estados</option>
                         <option value="OCCUPIED">Ocupadas</option>
                         <option value="FREE">Disponibles</option>
                         <option value="RESERVED">Reservadas</option>
                     </select>
 
                     <button onclick="openNewTableModal()" class="flex-1 sm:flex-initial px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-rose-950/30">
-                        <i class="fa-solid fa-plus"></i> Nueva Mesa / Área
+                        <i class="fa-solid fa-plus"></i> Nueva Mesa
                     </button>
                 </div>
             </div>
@@ -207,7 +191,7 @@
                     <h2 class="text-xl font-bold text-white flex items-center gap-2">
                         <i class="fa-solid fa-boxes-stacked text-purple-400"></i> Catálogo de Productos e Inventario
                     </h2>
-                    <p class="text-sm text-slate-400">Administra precios, costos y nivel de stock para alertas automáticas</p>
+                    <p class="text-sm text-slate-400">Administra precios, costos y nivel de stock con alertas automáticas</p>
                 </div>
                 <button onclick="openProductModal()" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm transition flex items-center gap-2 shadow-lg shadow-purple-950/30">
                     <i class="fa-solid fa-circle-plus"></i> Agregar Producto
@@ -225,13 +209,13 @@
                 </div>
             </div>
 
-            <!-- Products List / Grid -->
-            <div id="menu-items-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Products Grid -->
+            <div id="menu-items-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <!-- Products rendered dynamically -->
             </div>
         </section>
 
-        <!-- ================= TAB 3: CAJA Y VENTA RÁPIDA ================= -->
+        <!-- ================= TAB 3: CAJA Y RESUMEN ================= -->
         <section id="view-pos" class="tab-view hidden space-y-6">
             <!-- Register Metrics Summary -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -270,14 +254,14 @@
                     <h3 class="text-lg font-bold text-white flex items-center gap-2">
                         <i class="fa-solid fa-receipt text-rose-500"></i> Cobro Rápido de Mesas Activas
                     </h3>
-                    <span class="text-xs text-slate-400">Haga clic en pagar para liquidar inmediatamente</span>
+                    <span class="text-xs text-slate-400">Haz clic en pagar para liquidar inmediatamente</span>
                 </div>
 
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-slate-300">
                         <thead class="text-xs text-slate-400 uppercase bg-slate-900/60 border-b border-slate-800">
                             <tr>
-                                <th class="px-4 py-3">Mesa / Ubicación</th>
+                                <th class="px-4 py-3">Mesa / Área</th>
                                 <th class="px-4 py-3">Items Consumidos</th>
                                 <th class="px-4 py-3">Total Consumo</th>
                                 <th class="px-4 py-3">Estado</th>
@@ -353,7 +337,6 @@
 
     </main>
 
-    <!-- ================= MODALS SECTION ================= -->
 
     <!-- MODAL 1: ORDER MANAGEMENT (COMANDAS) -->
     <div id="modal-order" class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm hidden">
@@ -369,21 +352,27 @@
                         <p id="modal-table-subtitle" class="text-xs text-slate-400">Atendiendo mesa activa</p>
                     </div>
                 </div>
-                <button onclick="closeModal('modal-order')" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
+                <div class="flex items-center gap-2">
+                    <select id="modal-status-select" onchange="changeActiveTableStatus(this.value)" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2 py-1 text-slate-200">
+                        <option value="FREE">Libre</option>
+                        <option value="OCCUPIED">Ocupada</option>
+                        <option value="RESERVED">Reservada</option>
+                    </select>
+                    <button onclick="closeModal('modal-order')" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Modal Body Split into Products Catalog and Current Bill -->
             <div class="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
                 
-                <!-- Left Column: Add items selector (7 cols) -->
+                <!-- Left Column: Menu Items Selector (7 cols) -->
                 <div class="md:col-span-7 border-b md:border-b-0 md:border-r border-slate-800 p-4 flex flex-col overflow-hidden bg-slate-950/40">
                     <div class="flex gap-2 mb-3 overflow-x-auto pb-1" id="order-menu-categories">
                         <!-- Category pills -->
                     </div>
                     
-                    <!-- Search inside modal -->
                     <input type="text" id="order-product-search" onkeyup="filterModalProducts()" placeholder="Buscar en menú..." class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 mb-3 focus:outline-none focus:border-rose-500">
 
                     <!-- Scrollable menu item cards -->
@@ -392,14 +381,14 @@
                     </div>
                 </div>
 
-                <!-- Right Column: Current Order Items (5 cols) -->
+                <!-- Right Column: Current Order Cart (5 cols) -->
                 <div class="md:col-span-5 p-4 flex flex-col bg-slate-900/80">
                     <h4 class="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2 flex justify-between items-center">
                         <span>Items en Pedido</span>
                         <button onclick="clearCurrentOrderItems()" class="text-xs text-rose-400 hover:underline">Vaciar</button>
                     </h4>
 
-                    <!-- Items List -->
+                    <!-- Cart Items List -->
                     <div id="order-cart-items" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[180px]">
                         <!-- Selected cart items injected -->
                     </div>
@@ -409,9 +398,9 @@
                         <div class="flex justify-between text-xs text-slate-400">
                             <span>División de cuenta:</span>
                             <div class="flex items-center gap-1">
-                                <button onclick="adjustSplitPeople(-1)" class="w-5 h-5 rounded bg-slate-800 text-slate-200 flex items-center justify-center font-bold text-xs">-</button>
+                                <button onclick="adjustSplitPeople(-1)" class="w-5 h-5 rounded bg-slate-800 text-slate-200 flex items-center justify-center font-bold text-xs hover:bg-slate-700">-</button>
                                 <span id="split-people-count" class="font-bold text-slate-200">1</span> pers.
-                                <button onclick="adjustSplitPeople(1)" class="w-5 h-5 rounded bg-slate-800 text-slate-200 flex items-center justify-center font-bold text-xs">+</button>
+                                <button onclick="adjustSplitPeople(1)" class="w-5 h-5 rounded bg-slate-800 text-slate-200 flex items-center justify-center font-bold text-xs hover:bg-slate-700">+</button>
                             </div>
                         </div>
 
@@ -426,10 +415,10 @@
                         </div>
                     </div>
 
-                    <!-- Actions -->
+                    <!-- Modal Actions -->
                     <div class="grid grid-cols-2 gap-2 mt-4">
                         <button onclick="saveCurrentOrderState()" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-medium text-xs transition flex items-center justify-center gap-1.5">
-                            <i class="fa-solid fa-floppy-disk text-slate-400"></i> Guardar Pedido
+                            <i class="fa-solid fa-floppy-disk text-slate-400"></i> Guardar
                         </button>
                         <button onclick="openCheckoutModal()" class="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-rose-950/50">
                             <i class="fa-solid fa-cash-register"></i> Pagar / Cerrar
@@ -439,7 +428,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- MODAL 2: CHECKOUT & PAYMENT -->
     <div id="modal-checkout" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm hidden">
@@ -453,7 +441,7 @@
                 </button>
             </div>
 
-            <!-- Total display -->
+            <!-- Total Display -->
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
                 <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Total a Cobrar</p>
                 <h2 id="checkout-total-display" class="text-3xl font-extrabold text-emerald-400 mt-1">$0.00</h2>
@@ -498,7 +486,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- MODAL 3: ADD/EDIT MENU PRODUCT -->
     <div id="modal-product" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
@@ -558,14 +545,161 @@
         </div>
     </div>
 
-    <!-- Script de Integración de Base de Datos -->
-    <script>
-        // CONFIGURACIÓN DE SUPABASE
-        const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
-        const SUPABASE_ANON_KEY = 'TU_CLAVE_ANONIMA_PUBLIC_KEY';
-        
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    <!-- MODAL 4: ADD TABLE -->
+    <div id="modal-table-add" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-white">Nueva Mesa / Ubicación</h3>
+                <button onclick="closeModal('modal-table-add')" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
 
+            <form onsubmit="handleNewTableSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Nombre / Número de Mesa *</label>
+                    <input type="text" id="new-table-name" required placeholder="Ej. Mesa 12 o Barra 3" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Área / Ubicación *</label>
+                    <select id="new-table-area" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500">
+                        <option value="Salón Principal">Salón Principal</option>
+                        <option value="Terraza">Terraza</option>
+                        <option value="Barra">Barra</option>
+                        <option value="VIP">VIP</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeModal('modal-table-add')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-lg shadow-rose-950/50">Crear Mesa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        // Default Supabase Configuration (Will fallback gracefully to LocalStorage if placeholder or invalid)
+        const SUPABASE_URL = 'https://YOUR_SUPABASE_URL.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabase = null;
+        let isCloudConnected = false;
+
+        // Application State
+        let tablesData = [];
+        let menuData = [];
+        let salesData = [];
+        let activeTableId = null;
+        let selectedCategoryFilter = 'ALL';
+        let selectedOrderCategory = 'ALL';
+        let selectedPaymentMethod = 'Efectivo';
+        let splitPeopleCount = 1;
+
+        // Demo Data Templates
+        const DEMO_TABLES = [
+            { id: '1', name: 'Mesa 1', area: 'Salón Principal', status: 'FREE', items: [], total: 0 },
+            { id: '2', name: 'Mesa 2', area: 'Salón Principal', status: 'OCCUPIED', items: [{ id: 'p1', name: 'Margarita Clásica', price: 8.50, qty: 2 }, { id: 'p4', name: 'Nachos Supremos', price: 12.00, qty: 1 }], total: 29.00 },
+            { id: '3', name: 'Mesa 3', area: 'Salón Principal', status: 'FREE', items: [], total: 0 },
+            { id: '4', name: 'Mesa 4', area: 'Terraza', status: 'OCCUPIED', items: [{ id: 'p2', name: 'Cerveza Mojito IPA', price: 5.00, qty: 4 }], total: 20.00 },
+            { id: '5', name: 'Barra 1', area: 'Barra', status: 'FREE', items: [], total: 0 },
+            { id: '6', name: 'Barra 2', area: 'Barra', status: 'FREE', items: [], total: 0 },
+            { id: '7', name: 'Mesa VIP 1', area: 'VIP', status: 'RESERVED', items: [], total: 0 },
+            { id: '8', name: 'Mesa VIP 2', area: 'VIP', status: 'FREE', items: [], total: 0 }
+        ];
+
+        const DEMO_MENU = [
+            { id: 'p1', name: 'Margarita Clásica', category: 'Tragos y Cocteles', price: 8.50, cost: 2.20, stock: 45, minStock: 10 },
+            { id: 'p2', name: 'Cerveza Mojito IPA', category: 'Cervezas', price: 5.00, cost: 1.80, stock: 120, minStock: 20 },
+            { id: 'p3', name: 'Gin Tonic Premium', category: 'Tragos y Cocteles', price: 10.00, cost: 3.00, stock: 30, minStock: 5 },
+            { id: 'p4', name: 'Nachos Supremos', category: 'Comida y Botanas', price: 12.00, cost: 4.00, stock: 25, minStock: 5 },
+            { id: 'p5', name: 'Hamburguesa Meistr', category: 'Comida y Botanas', price: 14.50, cost: 5.20, stock: 18, minStock: 5 },
+            { id: 'p6', name: 'Botella Tequila Don Julio', category: 'Botellas', price: 95.00, cost: 45.00, stock: 6, minStock: 2 },
+            { id: 'p7', name: 'Red Bull Energy', category: 'Sin Alcohol', price: 4.00, cost: 1.50, stock: 50, minStock: 10 },
+            { id: 'p8', name: 'Limonada Mineral', category: 'Sin Alcohol', price: 3.50, cost: 0.80, stock: 3, minStock: 10 }
+        ];
+
+        const DEMO_SALES = [
+            { id: 's1', timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), tableName: 'Mesa 3', method: 'Efectivo', total: 42.50, items: [{ name: 'Margarita Clásica', qty: 3, price: 8.50 }, { name: 'Nachos Supremos', qty: 1, price: 12.00 }] },
+            { id: 's2', timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), tableName: 'Barra 1', method: 'Tarjeta', total: 19.50, items: [{ name: 'Hamburguesa Meistr', qty: 1, price: 14.50 }, { name: 'Cerveza Mojito IPA', qty: 1, price: 5.00 }] }
+        ];
+
+        window.onload = function() {
+            initDatabase();
+            renderAllViews();
+        };
+
+        function initDatabase() {
+            // Attempt Supabase connection if URL is valid
+            if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE_URL')) {
+                try {
+                    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    isCloudConnected = true;
+                    updateSyncStatusUI(true, "Cloud Supabase Conectado");
+                } catch (e) {
+                    console.warn("Supabase configuration failed, using local storage fallback", e);
+                    isCloudConnected = false;
+                    updateSyncStatusUI(false, "Modo Local (LocalStorage)");
+                }
+            } else {
+                isCloudConnected = false;
+                updateSyncStatusUI(false, "Modo Local (LocalStorage)");
+            }
+
+            // Load Local / Cloud State
+            loadState();
+        }
+
+        function updateSyncStatusUI(connected, text) {
+            const container = document.getElementById('sync-status');
+            const ping = document.getElementById('sync-ping');
+            const dot = document.getElementById('sync-dot');
+            const textEl = document.getElementById('sync-text');
+
+            textEl.textContent = text;
+            if (connected) {
+                container.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-400";
+                ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+            } else {
+                container.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-medium text-amber-400";
+                ping.className = "hidden";
+                dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500";
+            }
+        }
+
+        function loadState() {
+            const tablesLocal = localStorage.getItem('meistrbar_tables');
+            const menuLocal = localStorage.getItem('meistrbar_menu');
+            const salesLocal = localStorage.getItem('meistrbar_sales');
+
+            if (!tablesLocal || !menuLocal) {
+                seedDemoData(false);
+            } else {
+                tablesData = JSON.parse(tablesLocal);
+                menuData = JSON.parse(menuLocal);
+                salesData = salesLocal ? JSON.parse(salesLocal) : [];
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem('meistrbar_tables', JSON.stringify(tablesData));
+            localStorage.setItem('meistrbar_menu', JSON.stringify(menuData));
+            localStorage.setItem('meistrbar_sales', JSON.stringify(salesData));
+            renderAllViews();
+        }
+
+        function seedDemoData(notify = true) {
+            tablesData = JSON.parse(JSON.stringify(DEMO_TABLES));
+            menuData = JSON.parse(JSON.stringify(DEMO_MENU));
+            salesData = JSON.parse(JSON.stringify(DEMO_SALES));
+            saveState();
+            if (notify) showToast('Datos demo cargados con éxito', 'success');
+        }
+
+        // Navigation Tabs Controller
         function switchTab(tabId) {
             document.querySelectorAll('.tab-view').forEach(view => view.classList.add('hidden'));
             document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -577,19 +711,682 @@
             const activeTab = document.getElementById(`tab-${tabId}`);
             activeTab.classList.remove('text-slate-400');
             activeTab.classList.add('text-rose-400', 'bg-rose-500/10', 'border', 'border-rose-500/20');
+
+            renderAllViews();
+        }
+
+        function renderAllViews() {
+            renderTables();
+            renderMenuItems();
+            renderPOSSummary();
+            renderSalesHistory();
+            updateHeaderBadges();
+        }
+
+        function updateHeaderBadges() {
+            const activeTables = tablesData.filter(t => t.status === 'OCCUPIED' || (t.items && t.items.length > 0)).length;
+            const badgeTables = document.getElementById('badge-active-tables');
+            if (activeTables > 0) {
+                badgeTables.textContent = activeTables;
+                badgeTables.classList.remove('hidden');
+            } else {
+                badgeTables.classList.add('hidden');
+            }
+
+            const lowStockCount = menuData.filter(m => m.stock <= m.minStock).length;
+            const badgeStock = document.getElementById('badge-low-stock');
+            if (lowStockCount > 0) {
+                badgeStock.textContent = lowStockCount;
+                badgeStock.classList.remove('hidden');
+            } else {
+                badgeStock.classList.add('hidden');
+            }
+        }
+
+        function renderTables() {
+            const grid = document.getElementById('tables-grid');
+            const areaFilter = document.getElementById('area-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+
+            let filtered = tablesData.filter(t => {
+                const matchArea = areaFilter === 'ALL' || t.area === areaFilter;
+                const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
+                return matchArea && matchStatus;
+            });
+
+            grid.innerHTML = filtered.map(t => {
+                let statusBg = 'bg-slate-900/60 border-slate-800 text-slate-400';
+                let statusBadge = 'bg-slate-800 text-slate-400';
+                let statusText = 'Disponible';
+
+                if (t.status === 'OCCUPIED') {
+                    statusBg = 'bg-rose-950/20 border-rose-500/40 text-rose-300';
+                    statusBadge = 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+                    statusText = 'Ocupada';
+                } else if (t.status === 'RESERVED') {
+                    statusBg = 'bg-amber-950/20 border-amber-500/40 text-amber-300';
+                    statusBadge = 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+                    statusText = 'Reservada';
+                }
+
+                const itemCount = (t.items || []).reduce((acc, i) => acc + i.qty, 0);
+
+                return `
+                    <div onclick="openOrderModal('${t.id}')" class="glass-panel p-4 rounded-2xl border transition-all hover:scale-[1.02] cursor-pointer flex flex-col justify-between h-44 shadow-lg ${statusBg}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">${t.area}</span>
+                                <h3 class="font-bold text-base text-white mt-0.5">${t.name}</h3>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${statusBadge}">${statusText}</span>
+                        </div>
+
+                        <div class="my-2">
+                            <p class="text-xs text-slate-400 flex items-center gap-1">
+                                <i class="fa-solid fa-receipt"></i> ${itemCount} ítem(s)
+                            </p>
+                            <p class="text-xl font-extrabold text-white mt-1">$${(t.total || 0).toFixed(2)}</p>
+                        </div>
+
+                        <div class="flex items-center justify-between border-t border-slate-800/80 pt-2 text-xs text-slate-400">
+                            <span>Ver Comanda</span>
+                            <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openOrderModal(tableId) {
+            activeTableId = tableId;
+            const table = tablesData.find(t => t.id === tableId);
+            if (!table) return;
+
+            document.getElementById('modal-table-badge').textContent = table.name;
+            document.getElementById('modal-table-title').textContent = `${table.name} - ${table.area}`;
+            document.getElementById('modal-status-select').value = table.status;
+            
+            splitPeopleCount = 1;
+            document.getElementById('split-people-count').textContent = '1';
+
+            renderOrderCategories();
+            renderModalProducts();
+            renderCurrentOrderCart();
+
+            document.getElementById('modal-order').classList.remove('hidden');
+        }
+
+        function changeActiveTableStatus(newStatus) {
+            if (!activeTableId) return;
+            const table = tablesData.find(t => t.id === activeTableId);
+            if (table) {
+                table.status = newStatus;
+                saveState();
+            }
+        }
+
+        function renderOrderCategories() {
+            const categories = ['ALL', ...new Set(menuData.map(m => m.category))];
+            const container = document.getElementById('order-menu-categories');
+            
+            container.innerHTML = categories.map(cat => `
+                <button onclick="filterOrderCategory('${cat}')" class="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${selectedOrderCategory === cat ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}">
+                    ${cat === 'ALL' ? 'Todos' : cat}
+                </button>
+            `).join('');
+        }
+
+        function filterOrderCategory(cat) {
+            selectedOrderCategory = cat;
+            renderOrderCategories();
+            renderModalProducts();
+        }
+
+        function filterModalProducts() {
+            renderModalProducts();
+        }
+
+        function renderModalProducts() {
+            const search = (document.getElementById('order-product-search').value || '').toLowerCase();
+            const grid = document.getElementById('order-products-grid');
+
+            let filtered = menuData.filter(m => {
+                const matchCat = selectedOrderCategory === 'ALL' || m.category === selectedOrderCategory;
+                const matchSearch = m.name.toLowerCase().includes(search);
+                return matchCat && matchSearch;
+            });
+
+            grid.innerHTML = filtered.map(m => `
+                <div onclick="addItemToCurrentOrder('${m.id}')" class="bg-slate-900 border border-slate-800 hover:border-rose-500/50 p-2.5 rounded-xl cursor-pointer transition flex flex-col justify-between hover:bg-slate-800/80">
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h5 class="text-xs font-bold text-slate-200 line-clamp-1">${m.name}</h5>
+                        </div>
+                        <span class="text-[10px] text-slate-500">${m.category}</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-xs font-extrabold text-rose-400">$${m.price.toFixed(2)}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${m.stock <= m.minStock ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'}">Stock: ${m.stock}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addItemToCurrentOrder(productId) {
+            const table = tablesData.find(t => t.id === activeTableId);
+            const product = menuData.find(p => p.id === productId);
+            if (!table || !product) return;
+
+            if (product.stock <= 0) {
+                showToast(`Sin stock disponible de ${product.name}`, 'warning');
+                return;
+            }
+
+            if (!table.items) table.items = [];
+            const existingItem = table.items.find(i => i.id === productId);
+
+            if (existingItem) {
+                existingItem.qty += 1;
+            } else {
+                table.items.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    qty: 1
+                });
+            }
+
+            table.status = 'OCCUPIED';
+            recalculateTableTotal(table);
+            saveState();
+            renderCurrentOrderCart();
+        }
+
+        function updateCartItemQty(productId, delta) {
+            const table = tablesData.find(t => t.id === activeTableId);
+            if (!table || !table.items) return;
+
+            const item = table.items.find(i => i.id === productId);
+            if (!item) return;
+
+            item.qty += delta;
+            if (item.qty <= 0) {
+                table.items = table.items.filter(i => i.id !== productId);
+            }
+
+            if (table.items.length === 0) {
+                table.status = 'FREE';
+            }
+
+            recalculateTableTotal(table);
+            saveState();
+            renderCurrentOrderCart();
+        }
+
+        function clearCurrentOrderItems() {
+            const table = tablesData.find(t => t.id === activeTableId);
+            if (!table) return;
+            table.items = [];
+            table.status = 'FREE';
+            recalculateTableTotal(table);
+            saveState();
+            renderCurrentOrderCart();
+        }
+
+        function recalculateTableTotal(table) {
+            table.total = (table.items || []).reduce((sum, item) => sum + (item.price * item.qty), 0);
+        }
+
+        function renderCurrentOrderCart() {
+            const table = tablesData.find(t => t.id === activeTableId);
+            const container = document.getElementById('order-cart-items');
+            if (!table || !table.items || table.items.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 text-xs">
+                        <i class="fa-solid fa-cart-flatbed text-2xl mb-2"></i>
+                        <p>No hay productos en esta comanda</p>
+                    </div>
+                `;
+                document.getElementById('order-total-price').textContent = '$0.00';
+                updateSplitDisplay(0);
+                return;
+            }
+
+            container.innerHTML = table.items.map(item => `
+                <div class="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800/80 text-xs">
+                    <div class="flex-1 pr-2">
+                        <h5 class="font-semibold text-slate-200">${item.name}</h5>
+                        <p class="text-[10px] text-slate-400">$${item.price.toFixed(2)} c/u</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="updateCartItemQty('${item.id}', -1)" class="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center font-bold hover:bg-rose-500 hover:text-white transition">-</button>
+                        <span class="font-bold text-white text-xs w-4 text-center">${item.qty}</span>
+                        <button onclick="updateCartItemQty('${item.id}', 1)" class="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center font-bold hover:bg-emerald-500 hover:text-white transition">+</button>
+                        <span class="font-bold text-rose-400 w-12 text-right">$${(item.price * item.qty).toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('order-total-price').textContent = `$${table.total.toFixed(2)}`;
+            updateSplitDisplay(table.total);
+        }
+
+        function adjustSplitPeople(delta) {
+            splitPeopleCount = Math.max(1, splitPeopleCount + delta);
+            document.getElementById('split-people-count').textContent = splitPeopleCount;
+            const table = tablesData.find(t => t.id === activeTableId);
+            updateSplitDisplay(table ? table.total : 0);
+        }
+
+        function updateSplitDisplay(total) {
+            const splitBox = document.getElementById('split-calculation-box');
+            if (splitPeopleCount > 1 && total > 0) {
+                splitBox.classList.remove('hidden');
+                document.getElementById('split-amount-per-person').textContent = `$${(total / splitPeopleCount).toFixed(2)}`;
+            } else {
+                splitBox.classList.add('hidden');
+            }
+        }
+
+        function saveCurrentOrderState() {
+            showToast('Comanda guardada correctamente', 'success');
+            closeModal('modal-order');
+        }
+
+        function openNewTableModal() {
+            document.getElementById('modal-table-add').classList.remove('hidden');
+        }
+
+        function handleNewTableSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-table-name').value;
+            const area = document.getElementById('new-table-area').value;
+
+            const newTable = {
+                id: Date.now().toString(),
+                name: name,
+                area: area,
+                status: 'FREE',
+                items: [],
+                total: 0
+            };
+
+            tablesData.push(newTable);
+            saveState();
+            closeModal('modal-table-add');
+            showToast(`Mesa "${name}" agregada con éxito`, 'success');
+        }
+
+        function renderMenuItems() {
+            renderCategoryFilterTabs();
+            const grid = document.getElementById('menu-items-grid');
+            const search = (document.getElementById('menu-search').value || '').toLowerCase();
+
+            let filtered = menuData.filter(m => {
+                const matchCat = selectedCategoryFilter === 'ALL' || m.category === selectedCategoryFilter;
+                const matchSearch = m.name.toLowerCase().includes(search);
+                return matchCat && matchSearch;
+            });
+
+            grid.innerHTML = filtered.map(m => {
+                const isLowStock = m.stock <= m.minStock;
+                return `
+                    <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-3">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-[10px] uppercase font-bold text-slate-500">${m.category}</span>
+                                <h4 class="font-bold text-white text-sm">${m.name}</h4>
+                            </div>
+                            <button onclick="editProduct('${m.id}')" class="text-slate-400 hover:text-white text-xs p-1">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-slate-950/60 p-2 rounded-xl">
+                                <span class="text-slate-500 text-[10px] block">Precio Venta</span>
+                                <span class="font-bold text-emerald-400">$${m.price.toFixed(2)}</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-2 rounded-xl">
+                                <span class="text-slate-500 text-[10px] block">Costo</span>
+                                <span class="font-bold text-slate-300">$${(m.cost || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center pt-2 border-t border-slate-800/80 text-xs">
+                            <span class="text-slate-400">Stock actual:</span>
+                            <span class="font-bold px-2 py-0.5 rounded-full ${isLowStock ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-200'}">
+                                ${m.stock} unidades
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCategoryFilterTabs() {
+            const categories = ['ALL', ...new Set(menuData.map(m => m.category))];
+            const container = document.getElementById('category-filters');
+            container.innerHTML = categories.map(cat => `
+                <button onclick="selectCategoryFilter('${cat}')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition ${selectedCategoryFilter === cat ? 'bg-purple-600 text-white' : 'bg-slate-800/80 text-slate-400 hover:text-white'}">
+                    ${cat === 'ALL' ? 'Todas las Categorías' : cat}
+                </button>
+            `).join('');
+        }
+
+        function selectCategoryFilter(cat) {
+            selectedCategoryFilter = cat;
+            renderMenuItems();
+        }
+
+        function openProductModal() {
+            document.getElementById('product-form').reset();
+            document.getElementById('product-id').value = '';
+            document.getElementById('product-modal-title').textContent = 'Agregar Nuevo Producto';
+            document.getElementById('modal-product').classList.remove('hidden');
+        }
+
+        function editProduct(prodId) {
+            const p = menuData.find(item => item.id === prodId);
+            if (!p) return;
+
+            document.getElementById('product-id').value = p.id;
+            document.getElementById('prod-name').value = p.name;
+            document.getElementById('prod-category').value = p.category;
+            document.getElementById('prod-price').value = p.price;
+            document.getElementById('prod-cost').value = p.cost || '';
+            document.getElementById('prod-stock').value = p.stock;
+            document.getElementById('prod-min-stock').value = p.minStock || 5;
+
+            document.getElementById('product-modal-title').textContent = 'Editar Producto';
+            document.getElementById('modal-product').classList.remove('hidden');
+        }
+
+        function handleProductSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('product-id').value;
+            const name = document.getElementById('prod-name').value;
+            const category = document.getElementById('prod-category').value;
+            const price = parseFloat(document.getElementById('prod-price').value) || 0;
+            const cost = parseFloat(document.getElementById('prod-cost').value) || 0;
+            const stock = parseInt(document.getElementById('prod-stock').value) || 0;
+            const minStock = parseInt(document.getElementById('prod-min-stock').value) || 5;
+
+            if (id) {
+                const index = menuData.findIndex(m => m.id === id);
+                if (index !== -1) {
+                    menuData[index] = { ...menuData[index], name, category, price, cost, stock, minStock };
+                    showToast('Producto actualizado correctamente', 'success');
+                }
+            } else {
+                menuData.push({
+                    id: 'p_' + Date.now(),
+                    name, category, price, cost, stock, minStock
+                });
+                showToast('Producto añadido al inventario', 'success');
+            }
+
+            saveState();
+            closeModal('modal-product');
+        }
+
+        function renderPOSSummary() {
+            const totalRevenue = salesData.reduce((acc, s) => acc + s.total, 0);
+            const openAccountsTotal = tablesData.reduce((acc, t) => acc + (t.total || 0), 0);
+            const activeTablesCount = tablesData.filter(t => t.status === 'OCCUPIED' || (t.items && t.items.length > 0)).length;
+
+            const cashTotal = salesData.filter(s => s.method === 'Efectivo').reduce((acc, s) => acc + s.total, 0);
+            const digitalTotal = salesData.filter(s => s.method !== 'Efectivo').reduce((acc, s) => acc + s.total, 0);
+
+            document.getElementById('pos-total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
+            document.getElementById('pos-sales-count').textContent = salesData.length;
+            document.getElementById('pos-open-accounts').textContent = `$${openAccountsTotal.toFixed(2)}`;
+            document.getElementById('pos-active-tables-count').textContent = activeTablesCount;
+            document.getElementById('pos-cash-total').textContent = `$${cashTotal.toFixed(2)}`;
+            document.getElementById('pos-digital-total').textContent = `$${digitalTotal.toFixed(2)}`;
+
+            // Render table checkout list
+            const tbody = document.getElementById('pos-tables-tbody');
+            const activeTablesList = tablesData.filter(t => t.items && t.items.length > 0);
+
+            if (activeTablesList.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-6 text-slate-500 text-xs">No hay mesas con consumo activo en este momento.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = activeTablesList.map(t => `
+                <tr class="hover:bg-slate-800/40">
+                    <td class="px-4 py-3 font-bold text-white">${t.name} <span class="text-[10px] text-slate-500 font-normal">(${t.area})</span></td>
+                    <td class="px-4 py-3 text-slate-300 text-xs">${t.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
+                    <td class="px-4 py-3 font-extrabold text-rose-400">$${t.total.toFixed(2)}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400">Activa</span></td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="openCheckoutModalForTable('${t.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-md shadow-emerald-950/40">
+                            Pagar $${t.total.toFixed(2)}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openCheckoutModal() {
+            const table = tablesData.find(t => t.id === activeTableId);
+            if (!table || !table.items || table.items.length === 0) {
+                showToast('No hay consumo registrado para cobrar', 'warning');
+                return;
+            }
+            openCheckoutModalForTable(table.id);
+        }
+
+        function openCheckoutModalForTable(tableId) {
+            activeTableId = tableId;
+            const table = tablesData.find(t => t.id === tableId);
+            if (!table) return;
+
+            document.getElementById('checkout-total-display').textContent = `$${table.total.toFixed(2)}`;
+            document.getElementById('cash-given-input').value = '';
+            document.getElementById('cash-change-display').textContent = '$0.00';
+            selectPaymentMethod('Efectivo');
+
+            closeModal('modal-order');
+            document.getElementById('modal-checkout').classList.remove('hidden');
+        }
+
+        function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.payment-method-btn').forEach(btn => {
+                btn.classList.remove('active', 'border-emerald-500', 'bg-emerald-500/10', 'text-emerald-400');
+                btn.classList.add('border-slate-800', 'bg-slate-900', 'text-slate-400');
+            });
+
+            const activeBtn = document.getElementById(`pay-btn-${method}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-slate-800', 'bg-slate-900', 'text-slate-400');
+                activeBtn.classList.add('active', 'border-emerald-500', 'bg-emerald-500/10', 'text-emerald-400');
+            }
+
+            const cashBox = document.getElementById('cash-calculator-box');
+            if (method === 'Efectivo') {
+                cashBox.classList.remove('hidden');
+            } else {
+                cashBox.classList.add('hidden');
+            }
+        }
+
+        function calculateChange() {
+            const table = tablesData.find(t => t.id === activeTableId);
+            if (!table) return;
+
+            const given = parseFloat(document.getElementById('cash-given-input').value) || 0;
+            const change = Math.max(0, given - table.total);
+            document.getElementById('cash-change-display').textContent = `$${change.toFixed(2)}`;
+        }
+
+        function processFinalPayment() {
+            const table = tablesData.find(t => t.id === activeTableId);
+            if (!table || !table.items || table.items.length === 0) return;
+
+            // Deduct Stock
+            table.items.forEach(item => {
+                const prod = menuData.find(p => p.id === item.id);
+                if (prod) {
+                    prod.stock = Math.max(0, prod.stock - item.qty);
+                }
+            });
+
+            // Register Sales Log
+            const newSale = {
+                id: 's_' + Date.now(),
+                timestamp: new Date().toISOString(),
+                tableName: table.name,
+                method: selectedPaymentMethod,
+                total: table.total,
+                items: JSON.parse(JSON.stringify(table.items))
+            };
+
+            salesData.unshift(newSale);
+
+            // Reset Table
+            table.items = [];
+            table.total = 0;
+            table.status = 'FREE';
+
+            saveState();
+            closeModal('modal-checkout');
+            showToast(`Cobro exitoso. Mesa liberada.`, 'success');
+        }
+
+        function renderSalesHistory() {
+            renderTopProductsList();
+
+            const search = (document.getElementById('sales-search').value || '').toLowerCase();
+            const tbody = document.getElementById('sales-history-tbody');
+
+            let filtered = salesData.filter(s => {
+                return s.tableName.toLowerCase().includes(search) || s.method.toLowerCase().includes(search);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-6 text-slate-500">No hay ventas registradas en el historial.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(s => {
+                const date = new Date(s.timestamp).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+                return `
+                    <tr class="hover:bg-slate-800/40">
+                        <td class="px-3 py-2.5 font-medium text-slate-300">${date}</td>
+                        <td class="px-3 py-2.5 font-bold text-white">${s.tableName}</td>
+                        <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">${s.method}</span></td>
+                        <td class="px-3 py-2.5 font-extrabold text-emerald-400">$${s.total.toFixed(2)}</td>
+                        <td class="px-3 py-2.5 text-right text-slate-400 text-[11px]">${s.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderTopProductsList() {
+            const container = document.getElementById('top-products-list');
+            const counts = {};
+
+            salesData.forEach(sale => {
+                (sale.items || []).forEach(item => {
+                    counts[item.name] = (counts[item.name] || 0) + item.qty;
+                });
+            });
+
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            if (sorted.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">Sin datos de ventas aún.</p>`;
+                return;
+            }
+
+            container.innerHTML = sorted.slice(0, 5).map(([name, qty], index) => `
+                <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center text-[10px]">${index + 1}</span>
+                        <span class="font-medium text-slate-200">${name}</span>
+                    </div>
+                    <span class="font-bold text-slate-400">${qty} vtas.</span>
+                </div>
+            `).join('');
+        }
+
+        function exportSalesToCSV() {
+            if (salesData.length === 0) {
+                showToast('No hay datos para exportar', 'warning');
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,ID,Fecha,Mesa,Metodo,Total\n";
+            salesData.forEach(s => {
+                csvContent += `${s.id},"${s.timestamp}","${s.tableName}","${s.method}",${s.total}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `MeistrBar_Ventas_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Archivo CSV generado y descargado', 'success');
+        }
+
+        function clearSalesHistoryConfirm() {
+            if (confirm("¿Está seguro de que desea borrar todo el historial de ventas? Esta acción no se puede deshacer.")) {
+                salesData = [];
+                saveState();
+                showToast('Historial de ventas limpiado', 'info');
+            }
         }
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.add('hidden');
         }
 
-        function openProductModal() {
-            document.getElementById('modal-product').classList.remove('hidden');
-        }
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
 
-        function handleProductSubmit(e) {
-            e.preventDefault();
-            closeModal('modal-product');
+            let bgClass = 'bg-slate-900 border-slate-700 text-slate-200';
+            let icon = 'fa-info-circle text-cyan-400';
+
+            if (type === 'success') {
+                bgClass = 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200';
+                icon = 'fa-circle-check text-emerald-400';
+            } else if (type === 'warning') {
+                bgClass = 'bg-amber-950/90 border-amber-500/40 text-amber-200';
+                icon = 'fa-triangle-exclamation text-amber-400';
+            }
+
+            toast.className = `p-3 rounded-xl border backdrop-blur-md shadow-xl flex items-center justify-between text-xs transition-all transform translate-y-2 opacity-0 pointer-events-auto ${bgClass}`;
+            toast.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid ${icon} text-sm"></i>
+                    <span>${message}</span>
+                </div>
+                <button onclick="this.parentElement.remove()" class="ml-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
         }
     </script>
 </body>
