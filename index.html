@@ -120,12 +120,12 @@
 
                 <!-- Sync & Status Indicator -->
                 <div class="flex items-center gap-3">
-                    <div id="sync-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-400">
+                    <div id="sync-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-medium text-amber-400">
                         <span class="relative flex h-2.5 w-2.5">
                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                           <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                         </span>
-                        <span id="sync-text">Sincronizado Cloud</span>
+                        <span id="sync-text">Conectando...</span>
                     </div>
 
                     <!-- Action: Quick Reset / Seed standard data -->
@@ -666,20 +666,23 @@
         // Global App ID and Config
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'meistrbar-default-id';
 
-        // ⚠️ CREDENCIALES DE FIREBASE
-        // Reemplaza los valores demo de abajo con los de tu proyecto real:
-        // Consola de Firebase > Configuración del proyecto > Tus apps > Configuración del SDK.
-        // (Si defines la variable global __firebase_config, se usará esa y este objeto será ignorado.)
+        // Credenciales del proyecto Firebase: meistrbar (integradas desde credenciales.txt)
+        // Si defines la variable global __firebase_config, se usará esa y este objeto será ignorado.
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
             : {
-                apiKey: "demo-api-key",
-                authDomain: "demo-app.firebaseapp.com",
-                projectId: "demo-app",
-                storageBucket: "demo-app.appspot.com",
-                messagingSenderId: "123456789",
-                appId: "1:123456789:web:abcdef"
+                apiKey: "AIzaSyArNPMPH4LJsdPXND4ByTl3oM9niMJrVC8",
+                authDomain: "meistrbar.firebaseapp.com",
+                projectId: "meistrbar",
+                storageBucket: "meistrbar.firebasestorage.app",
+                messagingSenderId: "44558470096",
+                appId: "1:44558470096:web:4e3008c1e1d0c07c6c07d5",
+                measurementId: "G-NPZSST6S9F"
             };
+
+        // Diagnóstico: ¿se están usando credenciales reales o las de ejemplo?
+        const USING_DEMO_CONFIG = !firebaseConfig || !firebaseConfig.apiKey ||
+            firebaseConfig.apiKey === "demo-api-key" || firebaseConfig.projectId === "demo-app";
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -704,6 +707,14 @@
 
         // 1. Initialize Auth and Realtime Data Listeners
         async function initAuthAndData() {
+            // --- Diagnóstico de conexión: te dice en pantalla por qué no sincroniza ---
+            if (location.protocol === 'file:') {
+                showToast("Abierto con file:// — Firebase no puede cargar sus módulos así. Sirve el archivo por HTTP (GitHub Pages, Live Server, etc.).", "error");
+            }
+            if (USING_DEMO_CONFIG) {
+                showToast("Las credenciales de Firebase son de ejemplo (demo-app): integra las credenciales reales de tu proyecto para conectar a tu base de datos.", "error");
+            }
+
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -713,6 +724,7 @@
             } catch (err) {
                 console.warn("Auth fallback to local mode:", err);
                 updateSyncUI(false, "Modo Local (Sin Conexión Cloud)");
+                showToast(`Error de conexión Firebase [${err.code || 'desconocido'}]: ${err.message || err}`, "error");
                 loadFallbackLocalData();
             }
 
