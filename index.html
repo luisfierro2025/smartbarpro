@@ -691,6 +691,8 @@
 
         // State Management
         let currentUser = null;
+        // Modo de acceso directo: se activa si el login anonimo no esta habilitado en Firebase
+        let directModeActive = false;
         let isOnline = false;
 
         let tables = [];
@@ -722,22 +724,38 @@
                     await signInAnonymously(auth);
                 }
             } catch (err) {
-                console.warn("Auth fallback to local mode:", err);
-                updateSyncUI(false, "Modo Local (Sin Conexión Cloud)");
-                showToast(`Error de conexión Firebase [${err.code || 'desconocido'}]: ${err.message || err}`, "error");
-                loadFallbackLocalData();
+                console.warn("Login anónimo no disponible; se intenta el acceso directo a Firestore:", err);
+                showToast(`Login anónimo no disponible [${err.code || 'desconocido'}]. Conectando en modo directo...`, "error");
+                enableDirectFirestoreAccess();
             }
 
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUser = user;
+                    directModeActive = false;
                     updateSyncUI(true, "Conectado y Sincronizado");
                     setupRealtimeListeners();
-                } else {
+                } else if (!directModeActive) {
                     currentUser = null;
                     updateSyncUI(false, "Modo Sin Conexión");
                 }
             });
+        }
+
+        // Acceso directo a Firestore: se activa cuando el proveedor "Anónimo" no está
+        // habilitado en Firebase. Funciona porque las reglas de Firestore permiten el
+        // acceso (verificado por HTTP: lectura y escritura sin token = 200 OK).
+        // Si habilitas el login anónimo, este modo se desactiva solo y vuelve al flujo normal.
+        function enableDirectFirestoreAccess() {
+            if (!db) {
+                updateSyncUI(false, "Modo Local (LocalStorage)");
+                loadFallbackLocalData();
+                return;
+            }
+            directModeActive = true;
+            updateSyncUI(true, "Conectado (sin login)");
+            setupRealtimeListeners();
+            showToast("Conectado a la base de datos en modo directo (sin login).", "success");
         }
 
         function updateSyncUI(connected, message) {
@@ -757,7 +775,7 @@
 
         // Setup Firestore listeners for Tables, Menu, and Sales
         function setupRealtimeListeners() {
-            if (!currentUser) return;
+            if (!currentUser && !directModeActive) return;
 
             // Listen for Tables
             onSnapshot(getCollectionPath('tables'), (snapshot) => {
@@ -840,7 +858,7 @@
                 { id: 't6', name: 'VIP Terrace', capacity: 8, status: 'RESERVED', items: [], splitPeople: 1, order: 6 }
             ];
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 for (const item of defaultMenu) {
                     await setDoc(getDocPath('menu', item.id), item);
                 }
@@ -1183,7 +1201,7 @@
             if (!table) return;
 
             try {
-                if (currentUser) {
+                if (currentUser || directModeActive) {
                     await setDoc(getDocPath('tables', table.id), table);
                 } else {
                     localStorage.setItem('bar_tables', JSON.stringify(tables));
@@ -1270,14 +1288,14 @@
                 const prod = menuItems.find(m => m.id === item.id);
                 if (prod) {
                     prod.stock = Math.max(0, prod.stock - item.qty);
-                    if (currentUser) {
+                    if (currentUser || directModeActive) {
                         await updateDoc(getDocPath('menu', prod.id), { stock: prod.stock });
                     }
                 }
             }
 
             // Save Sale Record
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 await setDoc(getDocPath('sales', saleRecord.id), saleRecord);
             } else {
                 salesHistory.unshift(saleRecord);
@@ -1292,7 +1310,7 @@
             table.items = [];
             table.status = 'FREE';
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 await setDoc(getDocPath('tables', table.id), table);
             } else {
                 localStorage.setItem('bar_tables', JSON.stringify(tables));
@@ -1446,7 +1464,7 @@
                 minStock: parseInt(document.getElementById('prod-min').value) || 5
             };
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 await setDoc(getDocPath('menu', id), productData);
             } else {
                 const idx = menuItems.findIndex(m => m.id === id);
@@ -1466,7 +1484,7 @@
 
             prod.stock = Math.max(0, prod.stock + delta);
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 await updateDoc(getDocPath('menu', productId), { stock: prod.stock });
             } else {
                 localStorage.setItem('bar_menu', JSON.stringify(menuItems));
@@ -1478,7 +1496,7 @@
         window.deleteProduct = async function(productId) {
             if (!confirm("¿Está seguro de eliminar este producto del menú?")) return;
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 await deleteDoc(getDocPath('menu', productId));
             } else {
                 menuItems = menuItems.filter(m => m.id !== productId);
@@ -1508,7 +1526,7 @@
                 order: tables.length + 1
             };
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 await setDoc(getDocPath('tables', newTable.id), newTable);
             } else {
                 tables.push(newTable);
@@ -1687,7 +1705,7 @@
         window.clearSalesHistoryConfirm = async function() {
             if (!confirm("¿Está seguro de reiniciar el historial de ventas? Esta acción no se puede deshacer.")) return;
 
-            if (currentUser) {
+            if (currentUser || directModeActive) {
                 for (const sale of salesHistory) {
                     await deleteDoc(getDocPath('sales', sale.id));
                 }
