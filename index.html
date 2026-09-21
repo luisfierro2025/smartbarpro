@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Bar - POS & Gestión Real-Time</title>
+    <title>MeistrBar - POS & Gestión Real-Time</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -112,7 +112,7 @@
                     </div>
                     <div>
                         <h1 class="font-bold text-lg leading-none tracking-tight text-white flex items-center gap-2">
-                            CONTROL DE BAR <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-medium">POS v2.0</span>
+                            MeistrBar <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-medium">POS v2.0</span>
                         </h1>
                         <p class="text-xs text-slate-400">Gestión multi-dispositivo en tiempo real</p>
                     </div>
@@ -608,7 +608,7 @@
             <!-- Printable content wrapper -->
             <div id="printable-receipt" class="bg-white text-slate-900 p-4 rounded-xl text-xs font-mono space-y-3 shadow-inner">
                 <div class="text-center border-b border-dashed border-slate-300 pb-2">
-                    <h2 class="font-bold text-base tracking-wider">CONTROL DE BAR</h2>
+                    <h2 class="font-bold text-base tracking-wider">MeistrBar</h2>
                     <p class="text-[10px] text-slate-600">Ticket de Consumo / Comprobante</p>
                     <p id="receipt-date" class="text-[10px] text-slate-500 mt-1"></p>
                 </div>
@@ -647,7 +647,7 @@
     </div>
 
 
-    <!-- FIREBASE MODULE & APPLICATION LOGIC -->
+    <!-- APPLICATION SCRIPT LOGIC -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -655,33 +655,19 @@
             getFirestore, 
             doc, 
             setDoc, 
-            getDoc, 
             collection, 
             onSnapshot, 
             updateDoc, 
-            deleteDoc,
-            addDoc 
+            deleteDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global App ID and Config
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bar-control-default-id';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'meistrbar-default-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "demo-api-key",
-                authDomain: "demo-app.firebaseapp.com",
-                projectId: "demo-app",
-                storageBucket: "demo-app.appspot.com",
-                messagingSenderId: "123456789",
-                appId: "1:123456789:web:abcdef"
-            };
+            : null;
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        // State Management
+        // Application State Management
         let currentUser = null;
         let isOnline = false;
 
@@ -693,12 +679,55 @@
         let activeSelectedCategory = 'ALL';
         let selectedPaymentMethod = 'Efectivo';
 
-        // Paths according to Rule 1
-        const getCollectionPath = (collName) => collection(db, 'artifacts', appId, 'public', 'data', collName);
-        const getDocPath = (collName, docId) => doc(db, 'artifacts', appId, 'public', 'data', collName, docId);
+        let db = null;
+        let auth = null;
 
-        // 1. Initialize Auth and Realtime Data Listeners
+        if (firebaseConfig) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+            } catch (e) {
+                console.warn("Firebase initialization skipped or failed", e);
+            }
+        }
+
+        const getCollectionPath = (collName) => db ? collection(db, 'artifacts', appId, 'public', 'data', collName) : null;
+        const getDocPath = (collName, docId) => db ? doc(db, 'artifacts', appId, 'public', 'data', collName, docId) : null;
+
+        window.showToast = function(message, type = "info") {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            let bgClass = "bg-slate-800 text-slate-200 border-slate-700";
+            if (type === "success") bgClass = "bg-emerald-900/90 text-emerald-200 border-emerald-700";
+            if (type === "error") bgClass = "bg-rose-900/90 text-rose-200 border-rose-700";
+
+            toast.className = `p-3 rounded-xl border shadow-xl text-xs font-medium flex items-center justify-between transition-all duration-300 ${bgClass} pointer-events-auto`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" class="ml-2 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                if (toast.parentElement) toast.remove();
+            }, 3500);
+        };
+
+        window.closeModal = function(modalId) {
+            const m = document.getElementById(modalId);
+            if (m) m.classList.add('hidden');
+        };
+
         async function initAuthAndData() {
+            if (!auth) {
+                updateSyncUI(false, "Modo Local (LocalStorage)");
+                loadFallbackLocalData();
+                return;
+            }
+
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -707,18 +736,19 @@
                 }
             } catch (err) {
                 console.warn("Auth fallback to local mode:", err);
-                updateSyncUI(false, "Modo Local (Sin Conexión Cloud)");
+                updateSyncUI(false, "Modo Local");
                 loadFallbackLocalData();
             }
 
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUser = user;
-                    updateSyncUI(true, "Conectado y Sincronizado");
+                    updateSyncUI(true, "Conectado Cloud");
                     setupRealtimeListeners();
                 } else {
                     currentUser = null;
-                    updateSyncUI(false, "Modo Sin Conexión");
+                    updateSyncUI(false, "Modo Local");
+                    loadFallbackLocalData();
                 }
             });
         }
@@ -738,11 +768,9 @@
             }
         }
 
-        // Setup Firestore listeners for Tables, Menu, and Sales
         function setupRealtimeListeners() {
-            if (!currentUser) return;
+            if (!currentUser || !db) return;
 
-            // Listen for Tables
             onSnapshot(getCollectionPath('tables'), (snapshot) => {
                 const list = [];
                 snapshot.forEach(docSnap => {
@@ -750,54 +778,35 @@
                 });
                 
                 if (list.length === 0 && tables.length === 0) {
-                    // Seed if database is completely empty
                     seedInitialData();
                 } else {
                     tables = list.sort((a,b) => (a.order || 0) - (b.order || 0));
                     renderTables();
                     renderPosTableSummary();
                     updateBadges();
-                    
-                    // Refresh current active order modal if open
-                    if (currentActiveTableId) {
-                        renderCurrentOrderCart();
-                    }
+                    if (currentActiveTableId) renderCurrentOrderCart();
                 }
-            }, (error) => {
-                console.error("Tables snapshot error:", error);
-                showToast("Error al sincronizar mesas", "error");
-            });
+            }, (error) => console.error("Tables error:", error));
 
-            // Listen for Menu / Products
             onSnapshot(getCollectionPath('menu'), (snapshot) => {
                 const list = [];
-                snapshot.forEach(docSnap => {
-                    list.push({ id: docSnap.id, ...docSnap.data() });
-                });
+                snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
                 menuItems = list;
                 renderCategories();
                 renderMenuItems();
                 updateBadges();
-            }, (error) => {
-                console.error("Menu snapshot error:", error);
-            });
+            }, (error) => console.error("Menu error:", error));
 
-            // Listen for Sales History
             onSnapshot(getCollectionPath('sales'), (snapshot) => {
                 const list = [];
-                snapshot.forEach(docSnap => {
-                    list.push({ id: docSnap.id, ...docSnap.data() });
-                });
+                snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
                 salesHistory = list.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
                 renderSalesHistory();
                 renderPosMetrics();
                 renderTopProducts();
-            }, (error) => {
-                console.error("Sales snapshot error:", error);
-            });
+            }, (error) => console.error("Sales error:", error));
         }
 
-        // Seed Initial Default Data if Cloud is empty
         window.seedInitialData = async function() {
             showToast("Cargando datos de prueba...", "info");
 
@@ -823,14 +832,10 @@
                 { id: 't6', name: 'VIP Terrace', capacity: 8, status: 'RESERVED', items: [], splitPeople: 1, order: 6 }
             ];
 
-            if (currentUser) {
-                for (const item of defaultMenu) {
-                    await setDoc(getDocPath('menu', item.id), item);
-                }
-                for (const table of defaultTables) {
-                    await setDoc(getDocPath('tables', table.id), table);
-                }
-                showToast("Base de datos de ejemplo cargada con éxito", "success");
+            if (currentUser && db) {
+                for (const item of defaultMenu) await setDoc(getDocPath('menu', item.id), item);
+                for (const table of defaultTables) await setDoc(getDocPath('tables', table.id), table);
+                showToast("Base de datos de ejemplo cargada", "success");
             } else {
                 localStorage.setItem('bar_menu', JSON.stringify(defaultMenu));
                 localStorage.setItem('bar_tables', JSON.stringify(defaultTables));
@@ -852,7 +857,6 @@
             updateBadges();
         }
 
-        // 2. Navigation Switcher
         window.switchTab = function(tabName) {
             document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.nav-tab').forEach(el => {
@@ -870,18 +874,13 @@
             }
         };
 
-        // 3. Render Tables
         window.renderTables = function() {
             const grid = document.getElementById('tables-grid');
-            const filter = document.getElementById('table-filter').value;
+            const filter = document.getElementById('table-filter')?.value || 'ALL';
             if (!grid) return;
 
             grid.innerHTML = '';
-
-            const filteredTables = tables.filter(t => {
-                if (filter === 'ALL') return true;
-                return t.status === filter;
-            });
+            const filteredTables = tables.filter(t => filter === 'ALL' || t.status === filter);
 
             if (filteredTables.length === 0) {
                 grid.innerHTML = `
@@ -941,7 +940,6 @@
             });
         };
 
-        // 4. Modal Order Management
         window.openOrderModal = function(tableId) {
             currentActiveTableId = tableId;
             const table = tables.find(t => t.id === tableId);
@@ -1025,7 +1023,6 @@
             });
         };
 
-        // Cart Items Operations inside Order Modal
         window.addItemToOrder = function(product) {
             const table = tables.find(t => t.id === currentActiveTableId);
             if (!table) return;
@@ -1050,7 +1047,6 @@
             }
 
             if (table.status === 'FREE') table.status = 'OCCUPIED';
-
             renderCurrentOrderCart();
         };
 
@@ -1084,9 +1080,7 @@
             if (!table || !table.items) return;
 
             const item = table.items.find(i => i.id === productId);
-            if (item) {
-                item.note = noteText;
-            }
+            if (item) item.note = noteText;
         };
 
         window.clearCurrentOrderItems = function() {
@@ -1145,11 +1139,9 @@
                 });
             }
 
-            // Total calculation
             const total = items.reduce((acc, i) => acc + (i.price * i.qty), 0);
             document.getElementById('order-total-price').textContent = `$${total.toFixed(2)}`;
 
-            // Split calculation box
             const splitBox = document.getElementById('split-calculation-box');
             const splitPeople = table.splitPeople || 1;
             if (splitPeople > 1 && total > 0) {
@@ -1160,13 +1152,12 @@
             }
         };
 
-        // Save order state to cloud / local
         window.saveCurrentOrderState = async function() {
             const table = tables.find(t => t.id === currentActiveTableId);
             if (!table) return;
 
             try {
-                if (currentUser) {
+                if (currentUser && db) {
                     await setDoc(getDocPath('tables', table.id), table);
                 } else {
                     localStorage.setItem('bar_tables', JSON.stringify(tables));
@@ -1181,7 +1172,6 @@
             }
         };
 
-        // 5. Checkout & Payment Modal Operations
         window.openCheckoutModal = function(tableId) {
             if (tableId) currentActiveTableId = tableId;
             const table = tables.find(t => t.id === currentActiveTableId);
@@ -1237,7 +1227,6 @@
 
             const totalAmount = table.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
-            // Create Sale record
             const saleRecord = {
                 id: 'sale_' + Date.now(),
                 tableName: table.name,
@@ -1248,19 +1237,17 @@
                 dateStr: new Date().toLocaleString()
             };
 
-            // Deduct product inventory stock
             for (const item of table.items) {
                 const prod = menuItems.find(m => m.id === item.id);
                 if (prod) {
                     prod.stock = Math.max(0, prod.stock - item.qty);
-                    if (currentUser) {
+                    if (currentUser && db) {
                         await updateDoc(getDocPath('menu', prod.id), { stock: prod.stock });
                     }
                 }
             }
 
-            // Save Sale Record
-            if (currentUser) {
+            if (currentUser && db) {
                 await setDoc(getDocPath('sales', saleRecord.id), saleRecord);
             } else {
                 salesHistory.unshift(saleRecord);
@@ -1268,14 +1255,12 @@
                 localStorage.setItem('bar_menu', JSON.stringify(menuItems));
             }
 
-            // Prepare printable receipt metadata
             prepareReceiptModal(saleRecord);
 
-            // Reset and free table
             table.items = [];
             table.status = 'FREE';
 
-            if (currentUser) {
+            if (currentUser && db) {
                 await setDoc(getDocPath('tables', table.id), table);
             } else {
                 localStorage.setItem('bar_tables', JSON.stringify(tables));
@@ -1289,7 +1274,6 @@
             renderPosTableSummary();
             renderSalesHistory();
 
-            // Open printable ticket modal
             document.getElementById('modal-receipt').classList.remove('hidden');
         };
 
@@ -1308,7 +1292,6 @@
             `).join('');
         }
 
-        // 6. Menu / Product CRUD Operations
         window.renderCategories = function() {
             const container = document.getElementById('category-filters');
             if (!container) return;
@@ -1429,7 +1412,7 @@
                 minStock: parseInt(document.getElementById('prod-min').value) || 5
             };
 
-            if (currentUser) {
+            if (currentUser && db) {
                 await setDoc(getDocPath('menu', id), productData);
             } else {
                 const idx = menuItems.findIndex(m => m.id === id);
@@ -1449,7 +1432,7 @@
 
             prod.stock = Math.max(0, prod.stock + delta);
 
-            if (currentUser) {
+            if (currentUser && db) {
                 await updateDoc(getDocPath('menu', productId), { stock: prod.stock });
             } else {
                 localStorage.setItem('bar_menu', JSON.stringify(menuItems));
@@ -1461,7 +1444,7 @@
         window.deleteProduct = async function(productId) {
             if (!confirm("¿Está seguro de eliminar este producto del menú?")) return;
 
-            if (currentUser) {
+            if (currentUser && db) {
                 await deleteDoc(getDocPath('menu', productId));
             } else {
                 menuItems = menuItems.filter(m => m.id !== productId);
@@ -1471,7 +1454,6 @@
             showToast("Producto eliminado", "info");
         };
 
-        // 7. Custom Table Modal Creation
         window.openNewTableModal = function() {
             document.getElementById('modal-new-table').classList.remove('hidden');
         };
@@ -1491,7 +1473,7 @@
                 order: tables.length + 1
             };
 
-            if (currentUser) {
+            if (currentUser && db) {
                 await setDoc(getDocPath('tables', newTable.id), newTable);
             } else {
                 tables.push(newTable);
@@ -1503,7 +1485,6 @@
             closeModal('modal-new-table');
         };
 
-        // 8. POS Metrics and Table Quick Actions
         window.renderPosMetrics = function() {
             const totalRev = salesHistory.reduce((acc, s) => acc + (s.total || 0), 0);
             const cashTotal = salesHistory.filter(s => s.paymentMethod === 'Efectivo').reduce((acc, s) => acc + s.total, 0);
@@ -1563,7 +1544,6 @@
             });
         };
 
-        // 9. Sales Analytics & Top Products
         window.renderSalesHistory = function() {
             const tbody = document.getElementById('sales-history-tbody');
             const search = (document.getElementById('sales-search')?.value || '').toLowerCase();
@@ -1670,7 +1650,7 @@
         window.clearSalesHistoryConfirm = async function() {
             if (!confirm("¿Está seguro de reiniciar el historial de ventas? Esta acción no se puede deshacer.")) return;
 
-            if (currentUser) {
+            if (currentUser && db) {
                 for (const sale of salesHistory) {
                     await deleteDoc(getDocPath('sales', sale.id));
                 }
@@ -1684,7 +1664,6 @@
             showToast("Historial borrado", "info");
         };
 
-        // 10. Helpers & Utilities
         function updateBadges() {
             const activeTables = tables.filter(t => t.status === 'OCCUPIED').length;
             const lowStockCount = menuItems.filter(p => p.stock <= (p.minStock || 5)).length;
@@ -1702,33 +1681,6 @@
                 badgeStock.classList.toggle('hidden', lowStockCount === 0);
             }
         }
-
-        window.closeModal = function(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.classList.add('hidden');
-        };
-
-        window.showToast = function(message, type = "info") {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-
-            const toast = document.createElement('div');
-            let bg = "bg-slate-900 border-slate-700 text-slate-200";
-            if (type === "success") bg = "bg-emerald-950/90 border-emerald-500 text-emerald-200 shadow-emerald-950/50";
-            if (type === "error") bg = "bg-rose-950/90 border-rose-500 text-rose-200 shadow-rose-950/50";
-
-            toast.className = `p-3.5 rounded-xl border shadow-xl text-xs font-medium backdrop-blur-md flex items-center justify-between transition-all duration-300 transform translate-y-2 ${bg}`;
-            toast.innerHTML = `
-                <span>${message}</span>
-                <i class="fa-solid fa-xmark cursor-pointer ml-3 opacity-70 hover:opacity-100" onclick="this.parentElement.remove()"></i>
-            `;
-
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('opacity-0', '-translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3500);
-        };
 
         // Initialize App on DOM Load
         window.addEventListener('DOMContentLoaded', () => {
